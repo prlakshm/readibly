@@ -7,7 +7,7 @@ import type {
   ScanResult,
   SummaryCard
 } from '../shared/types';
-import { ANTHROPIC_API_KEY, CLAUDE_MODEL } from '../shared/config';
+import { ANTHROPIC_API_KEY, CLAUDE_MODEL, MAX_DOCUMENT_CHARS } from '../shared/config';
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {
@@ -118,7 +118,7 @@ function extractPageContent() {
     url: location.href,
     hostname: location.hostname || 'local-session',
     selection: window.getSelection()?.toString().trim() ?? '',
-    excerpt: bodyText.slice(0, 15_000) || 'No visible text was detected on this page.',
+    excerpt: bodyText.slice(0, MAX_DOCUMENT_CHARS) || 'No visible text was detected on this page.',
     headings
   };
 }
