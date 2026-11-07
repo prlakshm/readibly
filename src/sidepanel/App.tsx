@@ -5,6 +5,7 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import type { ClearHighlightsMessage, HighlightTextMessage, PanelTab, ScanResult, SummaryCard } from '../shared/types';
+import { cardRangeFor } from '../shared/config';
 import { defaultReadiblySettings, settingsStorageKey, type ReadiblySettings } from '../shared/settings';
 import { sendRuntimeMessage } from '../shared/messages';
 import { ChatPage } from './components/ChatPage';
@@ -55,7 +56,7 @@ Here is the exact style and format to follow (one-shot example):
 ${JSON.stringify(EXAMPLE_CARDS_WITH_SOURCE, null, 2)}
 
 Rules:
-- Generate 3–7 cards covering only categories genuinely present in the content.
+- Generate the number of cards requested by the user message (it scales with document length), covering only categories genuinely present in the content. Never pad with filler cards to reach the count.
 - Body: 1–2 plain-English sentences. No legal jargon. Focus on what it means for the user.
 - Short, specific title labels (e.g. "Auto-Renewal", "Data Retention", "Payment Terms").
 - Set "concern": true ONLY for clauses that are genuinely dangerous or highly unusual: e.g. irrevocable/perpetual license to user content, waiver of legal rights, hidden fees, selling data to third parties, or terms that could seriously harm the user. Most clauses should be false.
@@ -110,6 +111,8 @@ async function generateSummaryCards(apiKey: string, result: ScanResult): Promise
     .filter(Boolean)
     .join('\n');
 
+  const range = cardRangeFor(result.page.excerpt);
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -120,9 +123,9 @@ async function generateSummaryCards(apiKey: string, result: ScanResult): Promise
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1200,
+      max_tokens: 4000,
       system: SUMMARY_SYSTEM,
-      messages: [{ role: 'user', content: `Analyze this page and generate summary cards:\n\n${pageContent}` }]
+      messages: [{ role: 'user', content: `Analyze this page and generate ${range.min}–${range.max} summary cards (never more than ${range.max}):\n\n${pageContent}` }]
     })
   });
 
@@ -138,7 +141,7 @@ async function generateSummaryCards(apiKey: string, result: ScanResult): Promise
   const clean = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
   const parsed = JSON.parse(clean) as SummaryCard[];
   if (!Array.isArray(parsed)) throw new Error('Invalid response shape');
-  return parsed;
+  return parsed.slice(0, range.max);
 }
 
 export function App() {
