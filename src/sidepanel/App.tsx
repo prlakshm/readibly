@@ -4,6 +4,7 @@ import '@fontsource/manrope/700.css';
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
+import { anchorSource } from '../shared/anchorSource';
 import type { ClearHighlightsMessage, HighlightTextMessage, PanelTab, ScanResult, SummaryCard } from '../shared/types';
 import { cardRangeFor } from '../shared/config';
 import { defaultReadiblySettings, settingsStorageKey, type ReadiblySettings } from '../shared/settings';
@@ -50,7 +51,7 @@ const EXAMPLE_CARDS_WITH_SOURCE = EXAMPLE_CARDS.map((c, i) => ({
 
 const SUMMARY_SYSTEM = `You are Readibly, a legal document analyzer embedded in a Chrome extension. Analyze web page content and extract key legal, privacy, or contractual clauses — explained in plain English.
 
-Return ONLY a valid JSON array. No markdown fences, no preamble. Each element must be: {"title": string, "body": string, "concern": boolean}.
+Return ONLY a valid JSON array. No markdown fences, no preamble. Each element must be: {"title": string, "body": string, "concern": boolean, "source": string}.
 
 Here is the exact style and format to follow (one-shot example):
 ${JSON.stringify(EXAMPLE_CARDS_WITH_SOURCE, null, 2)}
@@ -61,6 +62,7 @@ Rules:
 - Short, specific title labels (e.g. "Auto-Renewal", "Data Retention", "Payment Terms").
 - Set "concern": true ONLY for clauses that are genuinely dangerous or highly unusual: e.g. irrevocable/perpetual license to user content, waiver of legal rights, hidden fees, selling data to third parties, or terms that could seriously harm the user. Most clauses should be false.
 - Set "concern": false for standard, low-risk, or routine clauses.
+- Source: one short phrase (40–120 characters) copied character-for-character from the content, taken from the clause the card is based on. Do not paraphrase, summarize, fix typos, or change capitalization or punctuation. Use an empty string if the card is not based on a specific clause.
 - If the page is not a legal/privacy document, return a single card explaining what the page is about with "concern": false.
 - Respond with the JSON array only — nothing else.`;
 
@@ -141,7 +143,10 @@ async function generateSummaryCards(apiKey: string, result: ScanResult): Promise
   const clean = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
   const parsed = JSON.parse(clean) as SummaryCard[];
   if (!Array.isArray(parsed)) throw new Error('Invalid response shape');
-  return parsed.slice(0, range.max);
+  return parsed.slice(0, range.max).map((card) => ({
+    ...card,
+    source: anchorSource(card.source, result.page.excerpt)
+  }));
 }
 
 export function App() {
@@ -422,8 +427,20 @@ function SummarySection({
       )}
 
       <div className="summary-grid">
-        {displayCards.map((card) => (
-          <Surface key={card.title} tone="white" className="summary-card">
+        {displayCards.map((card) => {
+          const source = card.source;
+          const canHighlight = !!result && !!source && settings.showClauseHighlights;
+          const isPinned = canHighlight && pinnedSource === source;
+          return (
+          <Surface
+            key={card.title}
+            tone="white"
+            className={`summary-card${canHighlight ? ' summary-card--highlightable' : ''}${isPinned ? ' summary-card--pinned' : ''}`}
+            onMouseEnter={canHighlight ? () => handleMouseEnter(source) : undefined}
+            onMouseLeave={canHighlight ? handleMouseLeave : undefined}
+            onClick={canHighlight ? () => handleClick(source) : undefined}
+            title={canHighlight ? 'Show this clause on the page' : undefined}
+          >
             <div className="summary-card__label-row">
               <div className="summary-card__label">{card.title}</div>
               <div className="summary-card__badge-slot">
@@ -441,7 +458,8 @@ function SummarySection({
             </div>
             <p>{card.body}</p>
           </Surface>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
