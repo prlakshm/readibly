@@ -1,3 +1,4 @@
+import { MAX_DOCUMENT_CHARS } from '../shared/config';
 import type {
   ClearHighlightsMessage,
   CollectPageContextMessage,
@@ -57,7 +58,7 @@ function collectPageSnapshot(): PageSnapshot {
     url: location.href,
     hostname: location.hostname || 'local-session',
     selection,
-    excerpt: bodyText.slice(0, 15000) || 'No visible text was detected on this page.',
+    excerpt: bodyText.slice(0, MAX_DOCUMENT_CHARS) || 'No visible text was detected on this page.',
     headings
   };
 }

@@ -7,7 +7,7 @@ import type {
   ScanResult,
   SummaryCard
 } from '../shared/types';
-import { ANTHROPIC_API_KEY, CLAUDE_MODEL } from '../shared/config';
+import { ANTHROPIC_API_KEY, CLAUDE_MODEL, MAX_DOCUMENT_CHARS, cardRangeFor } from '../shared/config';
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {
@@ -118,7 +118,7 @@ function extractPageContent() {
     url: location.href,
     hostname: location.hostname || 'local-session',
     selection: window.getSelection()?.toString().trim() ?? '',
-    excerpt: bodyText.slice(0, 15_000) || 'No visible text was detected on this page.',
+    excerpt: bodyText.slice(0, MAX_DOCUMENT_CHARS) || 'No visible text was detected on this page.',
     headings
   };
 }
@@ -137,6 +137,7 @@ Return ONLY valid JSON with no markdown fences, matching this schema exactly:
 
 "source" must be a short verbatim phrase (30–80 characters) copied exactly from the document text that the card is based on.`;
 
+  const range = cardRangeFor(page.excerpt);
   const userPrompt = `Analyze this agreement from ${page.hostname}:
 
 Title: ${page.title}
@@ -145,12 +146,12 @@ URL: ${page.url}
 Document text:
 ${page.excerpt}
 
-Return 4-6 highlights covering the most important topics from: data collection/sharing, payment/billing, auto-renewal, liability limits, arbitration/dispute resolution, account termination, and unusually broad rights granted to the provider. Be specific — paraphrase actual language from the document. Keep each body to 1-3 sentences. Return JSON only.`;
+Return ${range.min}-${range.max} highlights (scaled to this document's length; never pad with filler) covering the most important topics from: data collection/sharing, payment/billing, auto-renewal, liability limits, arbitration/dispute resolution, account termination, and unusually broad rights granted to the provider. Be specific — paraphrase actual language from the document. Keep each body to 1-3 sentences. Return JSON only.`;
 
   try {
     const stream = client.messages.stream({
       model: CLAUDE_MODEL,
-      max_tokens: 1024,
+      max_tokens: 4000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]
     });
@@ -160,7 +161,7 @@ Return 4-6 highlights covering the most important topics from: data collection/s
     const parsed = JSON.parse(text) as { highlights: SummaryCard[] };
 
     if (Array.isArray(parsed.highlights) && parsed.highlights.length > 0) {
-      return parsed.highlights;
+      return parsed.highlights.slice(0, range.max);
     }
   } catch {
     // Fall through to local fallback.

@@ -13,6 +13,8 @@ export interface SummaryCard {
   title: string;
   body: string;
   concern?: boolean;
+  /** Verbatim quote from the document, used to highlight the clause on the page. */
+  source?: string;
 }
 
 export interface ScanResult {

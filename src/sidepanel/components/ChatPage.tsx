@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ANTHROPIC_API_KEY, CLAUDE_MODEL } from '../../shared/config';
+import { ANTHROPIC_API_KEY, CLAUDE_MODEL, MAX_DOCUMENT_CHARS } from '../../shared/config';
 import type { ScanResult } from '../../shared/types';
 import { Surface } from './Surface';
 
@@ -50,7 +50,7 @@ Document: ${result.page.title}
 URL: ${result.page.url}
 
 Document text:
-${result.page.excerpt.slice(0, 8000)}
+${result.page.excerpt.slice(0, MAX_DOCUMENT_CHARS)}
 
 Analysis highlights:
 ${highlightText}`;
